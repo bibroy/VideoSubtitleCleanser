@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Subtitle Cleanser</title>
+    <link rel="stylesheet" href="/frontend/css/styles.css">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Video Subtitle Cleanser</h1>
+            <p>Improve your media viewing experience with intelligent subtitle processing</p>
+        </header>
+
+        <main>
+            <section class="tabs">
+                <div class="tab-header">
+                    <button class="tab-btn active" data-tab="upload">Upload Files</button>
+                    <button class="tab-btn" data-tab="process">Process Options</button>
+                    <button class="tab-btn" data-tab="translate">Translate</button>
+                    <button class="tab-btn" data-tab="analyze">Analyze</button>
+                    <button class="tab-btn" data-tab="tasks">My Tasks</button>
+                </div>
+
+                <div class="tab-content">
+                    <!-- Upload Tab -->
+                    <div class="tab-pane active" id="upload">
+                        <div class="upload-container">
+                            <div class="upload-box" id="upload-subtitle">
+                                <div class="upload-icon">
+                                    <i class="fas fa-file-alt fa-3x"></i>
+                                </div>
+                                <h3>Upload Subtitle File</h3>
+                                <p>Drop your subtitle file here or click to browse</p>
+                                <p class="file-info">(Supported formats: SRT, VTT, SUB, SBV, SMI, SSA, ASS)</p>
+                                <input type="file" id="subtitle-file-input" accept=".srt,.vtt,.sub,.sbv,.smi,.ssa,.ass" hidden>
+                            </div>
+
+                            <div class="upload-divider">
+                                <span>OR</span>
+                            </div>
+
+                            <div class="upload-box" id="upload-video">
+                                <div class="upload-icon">
+                                    <i class="fas fa-film fa-3x"></i>
+                                </div>
+                                <h3>Upload Video File</h3>
+                                <p>Drop your video file here or click to browse</p>
+                                <p class="file-info">(Supported formats: MP4, MKV, AVI, MOV, WMV)</p>
+                                <input type="file" id="video-file-input" accept=".mp4,.mkv,.avi,.mov,.wmv" hidden>
+                            </div>
+                        </div>
+
+                        <div class="upload-progress" id="upload-progress" style="display: none;">
+                            <div class="progress-bar">
+                                <div class="progress-fill"></div>
+                            </div>
+                            <p class="progress-text">Uploading... <span class="progress-percent">0%</span></p>
+                        </div>
+                    </div>
+
+                    <!-- Process Options Tab -->
+                    <div class="tab-pane" id="process">
+                        <div class="options-container">
+                            <h3>Subtitle Processing Options</h3>
+                            <div class="option-group">
+                                <div class="option-item">
+                                    <input type="checkbox" id="option-cleanse" checked>
+                                    <label for="option-cleanse">Cleanse errors & fix formatting</label>
+                                </div>
+
+                                <div class="option-item">
+                                    <input type="checkbox" id="option-grammar" checked>
+                                    <label for="option-grammar">Correct grammar & spelling</label>
+                                </div>
+
+                                <div class="option-item">
+                                    <input type="checkbox" id="option-chars" checked>
+                                    <label for="option-chars">Remove invalid characters</label>
+                                </div>
+
+                                <div class="option-item">
+                                    <input type="checkbox" id="option-timing" checked>
+                                    <label for="option-timing">Correct timing & synchronization</label>
+                                </div>
+
+                                <div class="option-item">
+                                    <input type="checkbox" id="option-position" checked>
+                                    <label for="option-position">Optimize subtitle position</label>
+                                </div>
+
+                                <div class="option-item">
+                                    <input type="checkbox" id="option-fonts" checked>
+                                    <label for="option-fonts">Enforce font consistency</label>
+                                </div>
+
+                                <div class="option-item">
+                                    <input type="checkbox" id="option-duplicates" checked>
+                                    <label for="option-duplicates">Remove duplicate lines</label>
+                                </div>                                <div class="option-item">
+                                    <input type="checkbox" id="option-diarize">
+                                    <label for="option-diarize">Diarize speakers (identify & label)</label>
+                                </div>
+                                
+                                <div class="option-item diarize-options" style="display:none; margin-left: 25px;">
+                                    <input type="checkbox" id="option-use-aws">
+                                    <label for="option-use-aws">Use AWS Transcribe for advanced speaker detection</label>
+                                </div>
+                                
+                                <div class="option-row diarize-options" style="display:none; margin-left: 25px;">
+                                    <label for="max-speakers">Maximum speakers:</label>
+                                    <input type="number" id="max-speakers" min="2" max="20" value="10" style="width: 60px;">
+                                </div>
+                            </div>                            <h3>Output Format</h3>
+                            <div class="option-group">
+                                <div class="option-row">
+                                    <label for="output-format">Select output format:</label>
+                                    <select id="output-format">
+                                        <option value="srt">SRT (SubRip)</option>
+                                        <option value="vtt" selected>VTT (WebVTT)</option>
+                                        <option value="ssa">SSA/ASS (Advanced SubStation Alpha)</option>
+                                        <option value="sub">SUB (SubViewer)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="action-buttons">
+                                <button id="btn-process" class="btn btn-primary" disabled>
+                                    <i class="fas fa-cog"></i> Process Subtitle
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Translate Tab -->
+                    <div class="tab-pane" id="translate">
+                        <div class="translate-container">
+                            <h3>Translate Subtitles</h3>
+                            <div class="option-group">
+                                <div class="option-row">
+                                    <label for="source-language">Source language:</label>
+                                    <select id="source-language">
+                                        <option value="auto" selected>Auto-detect</option>
+                                        <option value="en">English</option>
+                                        <option value="es">Spanish</option>
+                                        <option value="fr">French</option>
+                                        <option value="de">German</option>
+                                        <option value="it">Italian</option>
+                                        <option value="pt">Portuguese</option>
+                                        <option value="ru">Russian</option>
+                                        <option value="ja">Japanese</option>
+                                        <option value="zh">Chinese</option>
+                                        <option value="ko">Korean</option>
+                                        <option value="ar">Arabic</option>
+                                        <option value="hi">Hindi</option>
+                                    </select>
+                                </div>
+
+                                <div class="option-row">
+                                    <label for="target-language">Target language:</label>
+                                    <select id="target-language">
+                                        <option value="en">English</option>
+                                        <option value="es">Spanish</option>
+                                        <option value="fr">French</option>
+                                        <option value="de">German</option>
+                                        <option value="it">Italian</option>
+                                        <option value="pt">Portuguese</option>
+                                        <option value="ru">Russian</option>
+                                        <option value="ja">Japanese</option>
+                                        <option value="zh">Chinese</option>
+                                        <option value="ko">Korean</option>
+                                        <option value="ar">Arabic</option>
+                                        <option value="hi">Hindi</option>
+                                    </select>
+                                </div>
+
+                                <div class="option-item">
+                                    <input type="checkbox" id="preserve-formatting" checked>
+                                    <label for="preserve-formatting">Preserve formatting</label>
+                                </div>
+
+                                <div class="option-row">
+                                    <label for="translation-quality">Translation quality:</label>
+                                    <select id="translation-quality">
+                                        <option value="standard" selected>Standard</option>
+                                        <option value="premium">Premium</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="action-buttons">
+                                <button id="btn-translate" class="btn btn-primary" disabled>
+                                    <i class="fas fa-language"></i> Translate Subtitles
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Analyze Tab -->
+                    <div class="tab-pane" id="analyze">
+                        <div class="analyze-container">
+                            <h3>Analyze Subtitles</h3>
+                            <p>Analyze your subtitle file to identify potential issues and get recommendations for improvement.</p>
+
+                            <div class="action-buttons">
+                                <button id="btn-analyze" class="btn btn-secondary" disabled>
+                                    <i class="fas fa-search"></i> Analyze Subtitles
+                                </button>
+                            </div>
+
+                            <div class="analysis-results" style="display: none;">
+                                <h3>Analysis Results</h3>
+                                
+                                <div class="results-section">
+                                    <h4>Statistics</h4>
+                                    <div class="statistics-container" id="statistics-container">
+                                        <!-- Statistics will be added here -->
+                                    </div>
+                                </div>
+
+                                <div class="results-section">
+                                    <h4>Issues Found</h4>
+                                    <div class="issues-container" id="issues-container">
+                                        <!-- Issues will be added here -->
+                                    </div>
+                                </div>
+
+                                <div class="results-section">
+                                    <h4>Recommendations</h4>
+                                    <div class="recommendations-container" id="recommendations-container">
+                                        <!-- Recommendations will be added here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tasks Tab -->
+                    <div class="tab-pane" id="tasks">
+                        <div class="tasks-container">
+                            <h3>My Processing Tasks</h3>
+                            
+                            <div class="tasks-list" id="tasks-list">
+                                <!-- Tasks will be added here -->
+                                <div class="empty-tasks">No tasks yet</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <div class="task-notification" id="task-notification" style="display: none;">
+            <div class="notification-content">
+                <i class="task-icon"></i>
+                <div class="task-message"></div>
+            </div>
+            <button class="close-notification">&times;</button>
+        </div>        <footer>
+            <p>&copy; 2025 VideoSubtitleCleanser. All rights reserved.</p>
+        </footer>
+    </div>
+
+    <script src="/frontend/js/main.js"></script>
+    <script src="/frontend/js/diarize-options.js"></script>
+</body>
+</html>
