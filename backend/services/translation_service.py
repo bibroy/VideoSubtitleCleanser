@@ -1,9 +1,14 @@
 import os
-import boto3
 import json
 from typing import Dict, Any, List
 from pathlib import Path
 import pysrt
+
+# Import error utilities
+from backend.utils.error_utils import error_handler, log_error, try_import
+
+# For AWS integrations - use safe imports
+boto3 = try_import('boto3')
 
 # To use AWS services in production, configure AWS credentials
 # In this implementation, we'll simulate translation for demo purposes

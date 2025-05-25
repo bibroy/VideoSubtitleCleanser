@@ -208,9 +208,14 @@ Process a subtitle file:
 python cli.py process --input path/to/subtitle.vtt --output path/to/output.vtt --cleanse --grammar --position
 ```
 
-Extract subtitles from a video:
+Extract embedded subtitles from a video:
 ```bash
 python cli.py extract --input path/to/video.mp4 --output path/to/output.vtt --language eng
+```
+
+Generate subtitles from video using speech-to-text:
+```bash
+python cli.py transcribe --input path/to/video.mp4 --output path/to/output.vtt --tool auto
 ```
 
 Translate subtitles:
@@ -240,6 +245,15 @@ Process command options:
 Extract command options:
 - `--language`: Language code for extraction (default: eng)
 
+Transcribe command options:
+- `--language`: Language code for transcription (default: en-US)
+- `--format`: Output subtitle format (default: webvtt)
+- `--tool`: Speech-to-text tool to use (default: auto)
+  - `aws`: Use AWS Transcribe exclusively
+  - `whisper`: Use OpenAI Whisper exclusively
+  - `ffmpeg`: Use FFmpeg speech detection exclusively
+  - `auto`: Try each tool in order of quality (AWS → Whisper → FFmpeg)
+
 Translate command options:
 - `--source`: Source language (auto for auto-detect)
 - `--target`: Target language code
@@ -261,6 +275,8 @@ Translate command options:
 3. **AWS Services Not Working**
    - Verify AWS credentials are correctly set in .env file
    - Check network connectivity to AWS services
+   - For S3 bucket access, ensure AWS_S3_BUCKET is set correctly
+   - For transcription, ensure AWS_TRANSCRIBE_LANGUAGE_CODE matches your needs
 
 4. **Server Won't Start**
    - Check for port conflicts (something else might be using port 8000)
@@ -288,6 +304,70 @@ pip install -r requirements.txt
 ```
 
 3. Restart the application
+
+## Speech-to-Text Subtitle Generation
+
+### Setting Up Speech-to-Text
+
+#### AWS Transcribe Setup
+
+To use AWS Transcribe for speech-to-text, configure your `.env` file:
+
+```
+AWS_ACCESS_KEY_ID=your_access_key
+AWS_SECRET_ACCESS_KEY=your_secret_key
+AWS_REGION=your_region
+AWS_S3_BUCKET=your_bucket_name
+AWS_TRANSCRIBE_LANGUAGE_CODE=en-US
+```
+
+You need to create an S3 bucket in your AWS account for storing temporary files during transcription.
+
+#### OpenAI Whisper Setup
+
+To use OpenAI Whisper locally, ensure it's installed:
+
+```bash
+pip install openai-whisper
+```
+
+Whisper requires PyTorch and FFmpeg to be installed on your system.
+
+### Using Speech-to-Text
+
+#### Basic Usage
+
+```bash
+python cli.py transcribe --input path/to/video.mp4
+```
+
+This will use the "auto" mode, which tries AWS Transcribe first, then falls back to Whisper, and finally to FFmpeg if needed.
+
+#### Specifying the Speech-to-Text Tool
+
+```bash
+# Use AWS Transcribe specifically
+python cli.py transcribe --input path/to/video.mp4 --tool aws
+
+# Use OpenAI Whisper specifically
+python cli.py transcribe --input path/to/video.mp4 --tool whisper
+
+# Use FFmpeg speech detection specifically
+python cli.py transcribe --input path/to/video.mp4 --tool ffmpeg
+```
+
+#### Additional Options
+
+```bash
+# Specify language (default is en-US)
+python cli.py transcribe --input path/to/video.mp4 --language fr-FR
+
+# Specify output format (default is webvtt)
+python cli.py transcribe --input path/to/video.mp4 --format webvtt
+
+# Complete example
+python cli.py transcribe --input path/to/video.mp4 --language en-US --format webvtt --tool whisper --output my_subtitles.vtt --verbose
+```
 
 ## Running Tests
 

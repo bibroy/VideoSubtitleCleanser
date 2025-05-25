@@ -40,11 +40,21 @@ def setup_argparse():
     process_parser.add_argument("--verbose", action="store_true", help="Verbose output")
     
     # Extract command
-    extract_parser = subparsers.add_parser("extract", help="Extract subtitles from a video file")
+    extract_parser = subparsers.add_parser("extract", help="Extract embedded subtitles from a video file")
     extract_parser.add_argument("--input", required=True, help="Path to the input video file")
     extract_parser.add_argument("--output", help="Path to the output subtitle file")
     extract_parser.add_argument("--language", default="eng", help="Language code for extraction")
     extract_parser.add_argument("--verbose", action="store_true", help="Verbose output")
+    
+    # Transcribe command
+    transcribe_parser = subparsers.add_parser("transcribe", help="Generate subtitles from video using speech-to-text")
+    transcribe_parser.add_argument("--input", required=True, help="Path to the input video file")
+    transcribe_parser.add_argument("--output", help="Path to the output subtitle file")
+    transcribe_parser.add_argument("--language", default="en-US", help="Language code for transcription (e.g., en-US, fr-FR)")
+    transcribe_parser.add_argument("--format", default="webvtt", choices=["webvtt", "srt"], help="Output subtitle format")
+    transcribe_parser.add_argument("--tool", default="auto", choices=["aws", "whisper", "ffmpeg", "auto"], 
+                                 help="Speech-to-text tool to use (aws, whisper, ffmpeg, or auto)")
+    transcribe_parser.add_argument("--verbose", action="store_true", help="Verbose output")
     
     # Translate command
     translate_parser = subparsers.add_parser("translate", help="Translate a subtitle file")
@@ -296,6 +306,97 @@ def translate_subtitle(args):
     print("Timeout waiting for translation to complete. The operation may still be running in the background.")
     return 1
 
+def transcribe_video(args):
+    """Generate subtitles from video using speech-to-text"""
+    print(f"Transcribing video: {args.input}")
+    
+    # Validate input file
+    if not os.path.exists(args.input):
+        print(f"Error: Input file does not exist: {args.input}")
+        return 1
+    
+    if not is_valid_video_file(args.input):
+        print(f"Error: Not a valid video file: {args.input}")
+        return 1
+    
+    # Prepare output path
+    output_path = args.output
+    if not output_path:
+        base_name = os.path.splitext(os.path.basename(args.input))[0]
+        output_path = f"{base_name}_transcribed.{args.format}"
+    
+    # Create a task ID
+    task_id = str(uuid.uuid4())
+    
+    # Create required directories
+    ensure_directory_exists("data/videos")
+    ensure_directory_exists("data/processed")
+    
+    # Copy input to videos directory
+    input_ext = os.path.splitext(args.input)[1]
+    task_file_path = f"data/videos/{task_id}{input_ext}"
+    
+    if args.verbose:
+        print(f"Copying input file to: {task_file_path}")
+    
+    with open(args.input, "rb") as src, open(task_file_path, "wb") as dst:
+        dst.write(src.read())
+    
+    # Transcribe the video
+    print(f"Transcribing video using {args.tool} tool with language: {args.language}...")
+    processing_service.transcribe_video_to_subtitles(
+        task_id=task_id, 
+        language=args.language, 
+        output_format=args.format,
+        tool=args.tool
+    )
+    
+    # Wait for completion
+    import time
+    max_wait = 300  # Maximum wait time in seconds (longer for transcription)
+    wait_time = 0
+    while wait_time < max_wait:
+        status = subtitle_service.get_task_status(task_id)
+        
+        if args.verbose:
+            print(f"Status: {status['status']}")
+            if 'progress' in status:
+                print(f"Progress: {status.get('progress', 0)}%")
+            if 'step' in status:
+                print(f"Step: {status.get('step', '')}")
+        
+        if status["status"] == "completed":
+            output_file_path = status.get("output_path")
+            if output_file_path and os.path.exists(output_file_path):
+                print(f"Transcription completed successfully.")
+                
+                # Copy to output path
+                with open(output_file_path, "rb") as src, open(output_path, "wb") as dst:
+                    dst.write(src.read())
+                
+                print(f"Transcribed subtitle saved to: {output_path}")
+                
+                # Show warning if present
+                if "warning" in status:
+                    print(f"Warning: {status['warning']}")
+                    
+                return 0
+            break
+        elif status["status"] == "error":
+            print(f"Transcription failed: {status.get('message', 'Unknown error')}")
+            return 1
+        
+        # Print progress message
+        progress = status.get("progress", 0)
+        step = status.get("step", "processing")
+        print(f"Transcribing... {progress}% ({step}). Please wait.")
+        
+        time.sleep(5)  # Longer sleep time for transcription
+        wait_time += 5
+    
+    print("Timeout waiting for transcription to complete. The operation may still be running in the background.")
+    return 1
+
 def analyze_subtitle(args):
     """Analyze a subtitle file"""
     print(f"Analyzing subtitle file: {args.input}")
@@ -311,9 +412,6 @@ def analyze_subtitle(args):
     
     # Prepare output path
     output_path = args.output
-    if not output_path:
-        base_name = os.path.splitext(os.path.basename(args.input))[0]
-        output_path = f"{base_name}_analysis.json"
     
     # Create a task ID
     task_id = str(uuid.uuid4())
@@ -331,38 +429,32 @@ def analyze_subtitle(args):
     with open(args.input, "rb") as src, open(task_file_path, "wb") as dst:
         dst.write(src.read())
     
-    # Analyze the subtitle
-    print("Analyzing subtitle...")
+    # Analyze the subtitle file
+    print("Analyzing subtitle file...")
     analysis = processing_service.analyze_subtitle(task_id)
     
-    # Output the analysis
-    if analysis:
-        if "error" in analysis and analysis["error"]:
-            print(f"Analysis failed: {analysis['error']}")
-            return 1
+    if "error" not in analysis:
+        # Print summary of analysis
+        print("\nAnalysis Summary:")
+        print(f"Total subtitles: {analysis['statistics'].get('total_subtitles', 0)}")
+        print(f"Total characters: {analysis['statistics'].get('total_characters', 0)}")
+        print(f"Average characters per subtitle: {analysis['statistics'].get('average_characters_per_subtitle', 0)}")
+        print(f"File format: {analysis['statistics'].get('file_format', 'Unknown')}")
         
-        # Print a summary
-        print("\nAnalysis Results:")
-        
-        if "statistics" in analysis:
-            print("\nStatistics:")
-            for key, value in analysis["statistics"].items():
-                print(f"  {key.replace('_', ' ').title()}: {value}")
-        
-        if "issues" in analysis and analysis["issues"]:
+        if analysis.get('issues'):
             print("\nIssues Found:")
-            for issue in analysis["issues"]:
-                severity = issue.get("severity", "medium")
-                issue_type = issue.get("type", "unknown").replace("_", " ").title()
-                count = issue.get("count", "-")
-                print(f"  - {issue_type} (Severity: {severity}, Count: {count})")
+            for issue in analysis['issues']:
+                severity = issue.get('severity', 'unknown').upper()
+                issue_type = issue.get('type', 'unknown').replace('_', ' ').title()
+                count = issue.get('count', 1)
+                print(f"- [{severity}] {issue_type}: {count} instances")
         else:
             print("\nNo issues found.")
         
-        if "recommendations" in analysis and analysis["recommendations"]:
+        if analysis.get('recommendations'):
             print("\nRecommendations:")
-            for rec in analysis["recommendations"]:
-                print(f"  - {rec.get('message', '')}")
+            for rec in analysis['recommendations']:
+                print(f"- {rec.get('message', '')}")
         
         # Save to file if requested
         if output_path:
@@ -389,6 +481,8 @@ def main():
         return process_subtitle_file(args)
     elif args.command == "extract":
         return extract_subtitles(args)
+    elif args.command == "transcribe":
+        return transcribe_video(args)
     elif args.command == "translate":
         return translate_subtitle(args)
     elif args.command == "analyze":

@@ -4,19 +4,27 @@ An intelligent video subtitle processing system that improves media viewing expe
 
 ## Features
 
-- Subtitle cleansing and error correction
-- Output subtitle file can be of different languages according to the user's choice
-- Language consistency maintenance
-- Invalid character removal
-- Extra line removal
-- Grammar and spelling correction
-- Subtitle positioning optimization
-- Subtitle timing synchronization with spoken dialogue
-- Font consistency enforcement
-- Repositioning of subtitle to prevent overlay of any text shown in video
-- Speaker diarization - Identifying multiple speakers in the video using AWS Transcribe (with fallback to pattern detection) and labeling dialogues with speaker identifiers
-- Support for video and subtitle file processing
-- Multiple interface options (CLI and Web)
+- **Speech-to-Text Subtitle Generation**:
+  - Generate WebVTT subtitles directly from video audio tracks
+  - Multiple tool options: AWS Transcribe, OpenAI Whisper, or FFmpeg speech detection
+  - Automatic fallback system for robust operation
+  - Speaker diarization support (identifying different speakers)
+- **Subtitle Processing**:
+  - Subtitle cleansing and error correction
+  - Grammar and spelling correction
+  - Invalid character removal
+  - Extra line removal
+  - Font consistency enforcement
+- **Subtitle Optimization**:
+  - Subtitle positioning optimization
+  - Subtitle timing synchronization with spoken dialogue
+  - Repositioning of subtitles to prevent overlay of text shown in video
+- **Language Support**:
+  - Output subtitle file in different languages according to user's choice
+  - Language consistency maintenance
+- **Multiple Interfaces**:
+  - Web interface for interactive use
+  - CLI for batch processing and automation
 
 ## Getting Started
 

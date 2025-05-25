@@ -9,6 +9,7 @@ import re
 import threading
 import time
 import json
+import uuid
 
 # Import error utilities
 from backend.utils.error_utils import error_handler, log_error, try_import
@@ -19,11 +20,12 @@ requests = try_import('requests')
 language_tool_python = try_import('language_tool_python')
 cv2 = try_import('cv2')
 numpy = try_import('numpy')
+pydub = try_import('pydub')
+whisper = try_import('whisper')
 
 # Import services from backend
-from services.subtitle_service import get_subtitle_path, get_video_path, update_task_status
-
-from services.subtitle_service import get_subtitle_path, get_video_path, update_task_status
+from backend.services.subtitle_service import get_subtitle_path, get_video_path, update_task_status
+from backend.utils.aws_utils import start_transcription_job, check_transcription_job_status, fetch_transcript, upload_to_s3, CAN_USE_TRANSCRIBE
 
 # Dictionary to store active tasks for potential cancellation
 active_tasks = {}
@@ -155,9 +157,403 @@ def process_subtitle(task_id: str, options: Dict[str, Any]) -> None:
         if task_id in active_tasks:
             del active_tasks[task_id]
 
+@error_handler
+def transcribe_video_to_subtitles(task_id: str, language: str = "en-US", output_format: str = "webvtt", tool: str = "auto") -> None:
+    """
+    Extract subtitles from a video file using speech-to-text technology
+    
+    Args:
+        task_id: Task identifier
+        language: Language code for transcription (default: en-US)
+        output_format: Output format for subtitles (default: webvtt)
+        tool: Speech-to-text tool to use (default: "auto")
+              Options: "aws" (AWS Transcribe), "whisper" (OpenAI Whisper),
+                       "ffmpeg" (FFmpeg speech detection), or "auto" (try in order)
+    """
+    cancellation_event = threading.Event()
+    active_tasks[task_id] = {
+        "cancellation_event": cancellation_event
+    }
+    
+    try:
+        update_task_status(task_id, "transcribing", {"progress": 0, "step": "starting"})
+        
+        # Get path to video file
+        video_path = get_video_path(task_id)
+        if not video_path:
+            update_task_status(task_id, "error", {"message": "Video file not found"})
+            return
+        
+        # Create output directories
+        uploads_dir = Path("data/uploads")
+        uploads_dir.mkdir(exist_ok=True, parents=True)
+        output_dir = Path("data/processed")
+        output_dir.mkdir(exist_ok=True, parents=True)
+        
+        # Determine output path
+        output_path = str(output_dir / f"{task_id}.{output_format}")
+        
+        # Determine which tool to use
+        use_aws = tool.lower() in ["aws", "auto"] and CAN_USE_TRANSCRIBE
+        use_whisper = tool.lower() in ["whisper", "auto"] and whisper is not None
+        use_ffmpeg = tool.lower() in ["ffmpeg", "auto"]
+        
+        # Try AWS Transcribe if selected and available
+        if use_aws:
+            try:
+                update_task_status(task_id, "transcribing", {"progress": 10, "step": "uploading_to_s3"})
+                
+                # Upload video to S3 for transcription
+                upload_result = upload_to_s3(video_path)
+                if not upload_result.get("success"):
+                    raise Exception("Failed to upload video to S3")
+                
+                # Start transcription job
+                media_uri = upload_result["media_uri"]
+                job_name = f"transcribe-{task_id}-{int(time.time())}"
+                
+                # Configure transcription settings
+                settings = {
+                    "ShowSpeakerLabels": True,
+                    "MaxSpeakerLabels": 10,
+                    "ShowAlternatives": True,
+                    "MaxAlternatives": 2
+                }
+                
+                update_task_status(task_id, "transcribing", {"progress": 20, "step": "starting_transcription"})
+                job_result = start_transcription_job(job_name, media_uri, settings)
+                
+                if not job_result.get("success"):
+                    raise Exception("Failed to start transcription job")
+                
+                # Poll for job completion
+                completed = False
+                max_polls = 60  # Maximum number of polling attempts
+                polls = 0
+                
+                while not completed and polls < max_polls:
+                    # Check for cancellation
+                    if cancellation_event.is_set():
+                        update_task_status(task_id, "cancelled")
+                        return
+                    
+                    # Wait before polling
+                    time.sleep(10)  # Poll every 10 seconds
+                    polls += 1
+                    
+                    # Check job status
+                    status_result = check_transcription_job_status(job_name)
+                    
+                    if not status_result.get("success"):
+                        raise Exception("Failed to check transcription job status")
+                    
+                    status = status_result.get("status")
+                    progress = min(20 + int(polls / max_polls * 60), 80)  # Progress from 20% to 80%
+                    update_task_status(task_id, "transcribing", {"progress": progress, "step": f"transcribing_{status.lower()}"})
+                    
+                    if status == "COMPLETED":
+                        completed = True
+                        transcript_uri = status_result.get("transcript_uri")
+                        
+                        # Fetch and process transcript
+                        update_task_status(task_id, "transcribing", {"progress": 85, "step": "processing_transcript"})
+                        transcript_result = fetch_transcript(transcript_uri)
+                        
+                        if not transcript_result.get("success"):
+                            raise Exception("Failed to fetch transcript")
+                        
+                        # Convert transcript directly to WebVTT format
+                        transcript_data = transcript_result.get("data")
+                        _convert_aws_transcript_to_webvtt(transcript_data, output_path)
+                        
+                        update_task_status(task_id, "completed", {
+                            "progress": 100,
+                            "output_path": output_path,
+                            "download_url": f"/api/subtitles/download/{task_id}"
+                        })
+                        return
+                    
+                    elif status == "FAILED":
+                        raise Exception("AWS Transcription job failed")
+                
+                if not completed:
+                    raise Exception("Transcription job timed out")
+                
+            except Exception as e:
+                log_error(e, "AWS Transcribe error")
+                if tool.lower() == "aws":
+                    # If AWS was specifically requested but failed, return error
+                    update_task_status(task_id, "error", {"message": "AWS Transcribe failed and no fallback allowed"})
+                    return
+                # Fall back to local transcription
+                update_task_status(task_id, "transcribing", {"progress": 30, "step": "falling_back_to_local"})
+        
+        # Local transcription using Whisper if selected and available
+        if use_whisper:
+            try:
+                update_task_status(task_id, "transcribing", {"progress": 40, "step": "loading_whisper_model"})
+                
+                # Load Whisper model (base model to balance speed and accuracy)
+                model = whisper.load_model("base")
+                
+                update_task_status(task_id, "transcribing", {"progress": 50, "step": "transcribing_with_whisper"})
+                
+                # Transcribe audio
+                result = model.transcribe(video_path, language=language[:2])
+                
+                update_task_status(task_id, "transcribing", {"progress": 80, "step": "processing_transcript"})
+                
+                # Convert Whisper result directly to WebVTT format
+                _convert_whisper_result_to_webvtt(result, output_path)
+                
+                update_task_status(task_id, "completed", {
+                    "progress": 100,
+                    "output_path": output_path,
+                    "download_url": f"/api/subtitles/download/{task_id}"
+                })
+                return
+                
+            except Exception as e:
+                log_error(e, "Whisper transcription error")
+                if tool.lower() == "whisper":
+                    # If Whisper was specifically requested but failed, return error
+                    update_task_status(task_id, "error", {"message": "Whisper transcription failed and no fallback allowed"})
+                    return
+        
+        # Use FFmpeg speech detection if selected or as final fallback
+        if use_ffmpeg:
+            try:
+                update_task_status(task_id, "transcribing", {"progress": 60, "step": "using_ffmpeg_fallback"})
+                
+                # Use FFmpeg's speech detection to create subtitle segments
+                # This is a basic approach that detects speech segments but doesn't transcribe text
+                temp_vtt_path = str(uploads_dir / f"{task_id}_temp.vtt")
+                
+                cmd = [
+                    "ffmpeg",
+                    "-i", video_path,
+                    "-af", "silencedetect=noise=-30dB:d=0.5",
+                    "-f", "null",
+                    "-"
+                ]
+                
+                result = subprocess.run(cmd, capture_output=True, text=True)
+                
+                # Parse silence detection output
+                silence_matches = re.findall(r'silence_start: (\d+\.\d+)|silence_end: (\d+\.\d+)', result.stderr)
+                
+                # Create basic WebVTT with timestamps but placeholder text
+                with open(temp_vtt_path, 'w', encoding='utf-8') as f:
+                    f.write("WEBVTT\n\n")
+                    
+                    # Process silence detection results to create speech segments
+                    segments = []
+                    silence_starts = []
+                    silence_ends = []
+                    
+                    for match in silence_matches:
+                        if match[0]:  # silence_start
+                            silence_starts.append(float(match[0]))
+                        elif match[1]:  # silence_end
+                            silence_ends.append(float(match[1]))
+                    
+                    # Create speech segments (between silence end and next silence start)
+                    for i in range(len(silence_ends) - 1):
+                        if i < len(silence_starts):
+                            start_time = silence_ends[i]
+                            end_time = silence_starts[i]
+                            
+                            if end_time - start_time > 0.5:  # Only include segments longer than 0.5 seconds
+                                segments.append((start_time, end_time))
+                    
+                    # Write segments to WebVTT file
+                    for i, (start, end) in enumerate(segments):
+                        # Format timestamps as HH:MM:SS.mmm
+                        start_formatted = _format_timestamp(start)
+                        end_formatted = _format_timestamp(end)
+                        
+                        f.write(f"cue{i+1}\n")
+                        f.write(f"{start_formatted} --> {end_formatted}\n")
+                        f.write(f"[Speech detected]\n\n")
+                
+                # Copy the temporary VTT file to the output path
+                shutil.copy(temp_vtt_path, output_path)
+                
+                update_task_status(task_id, "completed", {
+                    "progress": 100,
+                    "output_path": output_path,
+                    "download_url": f"/api/subtitles/download/{task_id}",
+                    "warning": "Used basic speech detection. No actual transcription available."
+                })
+            
+            except Exception as e:
+                log_error(e, "FFmpeg speech detection error")
+                update_task_status(task_id, "error", {"message": str(e)})
+        else:
+            # If we get here, none of the selected tools worked
+            update_task_status(task_id, "error", {"message": f"No suitable transcription tool available for the selected option: {tool}"})
+    
+    except Exception as e:
+        update_task_status(task_id, "error", {"message": str(e)})
+    finally:
+        # Clean up task
+        if task_id in active_tasks:
+            del active_tasks[task_id]
+
+# Helper function to convert AWS transcript to WebVTT format
+def _convert_aws_transcript_to_webvtt(transcript_data: Dict[str, Any], output_path: str) -> None:
+    """
+    Convert AWS Transcribe JSON result directly to WebVTT format
+    
+    Args:
+        transcript_data: AWS Transcribe result data
+        output_path: Path to save the WebVTT file
+    """
+    try:
+        # Extract results from transcript data
+        results = transcript_data.get('results', {})
+        items = results.get('items', [])
+        speaker_labels = results.get('speaker_labels', {}).get('segments', [])
+        
+        # Create a mapping of item IDs to speaker labels
+        speaker_mapping = {}
+        for segment in speaker_labels:
+            speaker = segment.get('speaker_label', 'Speaker')
+            for item in segment.get('items', []):
+                item_id = item.get('start_time')
+                speaker_mapping[item_id] = speaker
+        
+        # Group items into subtitles
+        subtitles = []
+        current_subtitle = {
+            'start_time': None,
+            'end_time': None,
+            'text': [],
+            'speaker': None
+        }
+        
+        for item in items:
+            # Skip non-pronunciation items (like punctuation) that don't have start/end times
+            if item.get('type') == 'punctuation':
+                if current_subtitle['text']:
+                    current_subtitle['text'][-1] += item.get('alternatives', [{}])[0].get('content', '')
+                continue
+                
+            start_time = float(item.get('start_time', 0))
+            end_time = float(item.get('end_time', 0))
+            content = item.get('alternatives', [{}])[0].get('content', '')
+            speaker = speaker_mapping.get(item.get('start_time'), 'Speaker')
+            
+            # Start a new subtitle if:  
+            # 1. This is the first item
+            # 2. There's a significant pause (> 1.5s)
+            # 3. Speaker changes
+            if (current_subtitle['start_time'] is None or 
+                start_time - current_subtitle['end_time'] > 1.5 or
+                (current_subtitle['speaker'] and current_subtitle['speaker'] != speaker)):
+                
+                # Save the previous subtitle if it exists
+                if current_subtitle['start_time'] is not None:
+                    subtitles.append(current_subtitle)
+                
+                # Start a new subtitle
+                current_subtitle = {
+                    'start_time': start_time,
+                    'end_time': end_time,
+                    'text': [content],
+                    'speaker': speaker
+                }
+            else:
+                # Continue the current subtitle
+                current_subtitle['end_time'] = end_time
+                current_subtitle['text'].append(content)
+        
+        # Add the last subtitle
+        if current_subtitle['start_time'] is not None:
+            subtitles.append(current_subtitle)
+        
+        # Write to WebVTT file
+        with open(output_path, 'w', encoding='utf-8') as f:
+            # Write WebVTT header
+            f.write("WEBVTT\n\n")
+            
+            for i, subtitle in enumerate(subtitles, 1):
+                # Format start and end times as WebVTT timestamps (HH:MM:SS.mmm)
+                start = _format_timestamp(subtitle['start_time'])
+                end = _format_timestamp(subtitle['end_time'])
+                
+                # Add cue identifier with speaker if available
+                cue_id = f"cue{i}"
+                if subtitle['speaker']:
+                    cue_id = f"{cue_id} - {subtitle['speaker']}"
+                f.write(f"{cue_id}\n")
+                
+                # Write timestamp line
+                f.write(f"{start} --> {end}\n")
+                
+                # Format text with speaker label using WebVTT voice tags if available
+                text = ' '.join(subtitle['text'])
+                if subtitle['speaker']:
+                    text = f"<v {subtitle['speaker']}>{text}</v>"
+                
+                # Write text and blank line
+                f.write(f"{text}\n\n")
+                
+    except Exception as e:
+        raise Exception(f"Failed to convert AWS transcript to WebVTT: {str(e)}")
+
+# Helper function to convert Whisper result to WebVTT format
+def _convert_whisper_result_to_webvtt(result: Dict[str, Any], output_path: str) -> None:
+    """
+    Convert Whisper transcription result directly to WebVTT format
+    
+    Args:
+        result: Whisper transcription result
+        output_path: Path to save the WebVTT file
+    """
+    try:
+        segments = result.get('segments', [])
+        
+        with open(output_path, 'w', encoding='utf-8') as f:
+            # Write WebVTT header
+            f.write("WEBVTT\n\n")
+            
+            for i, segment in enumerate(segments, 1):
+                start_time = segment.get('start', 0)
+                end_time = segment.get('end', 0)
+                text = segment.get('text', '').strip()
+                
+                # Format timestamps as WebVTT format (HH:MM:SS.mmm)
+                start = _format_timestamp(start_time)
+                end = _format_timestamp(end_time)
+                
+                # Write WebVTT cue
+                f.write(f"cue{i}\n")
+                f.write(f"{start} --> {end}\n")
+                f.write(f"{text}\n\n")
+                
+    except Exception as e:
+        raise Exception(f"Failed to convert Whisper result to WebVTT: {str(e)}")
+
+# Helper function to format timestamp for WebVTT (HH:MM:SS.mmm)
+def _format_timestamp(seconds: float) -> str:
+    """
+    Format seconds as WebVTT timestamp (HH:MM:SS.mmm)
+    """
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    seconds = seconds % 60
+    return f"{hours:02d}:{minutes:02d}:{seconds:06.3f}"
+
+# This function is no longer needed since we're directly converting to WebVTT format
+# Keeping the _format_timestamp function which formats for WebVTT
+
 def extract_subtitles(task_id: str, language: str = "eng") -> None:
     """
-    Extract subtitles from a video file
+    Extract embedded subtitles from a video file
+    
+    Note: This function extracts existing subtitles embedded in the video.
+    For speech-to-text generation of subtitles, use transcribe_video_to_subtitles instead.
     """
     cancellation_event = threading.Event()
     active_tasks[task_id] = {
@@ -178,38 +574,82 @@ def extract_subtitles(task_id: str, language: str = "eng") -> None:
         output_dir.mkdir(exist_ok=True, parents=True)
         output_path = str(output_dir / f"{task_id}.srt")
         
-        # Extract subtitles using ffmpeg
-        cmd = [
-            "ffmpeg",
-            "-i", video_path,
-            "-map", f"0:s:{language}",  # Select subtitle stream by language
-            output_path
-        ]
+        # Try multiple extraction methods in sequence
+        extraction_success = False
+        error_message = ""
         
+        # Method 1: Try to extract subtitles by language tag
         try:
+            print(f"Trying extraction method 1: by language tag '{language}'")
+            cmd = [
+                "ffmpeg",
+                "-i", video_path,
+                "-map", f"0:s:m:language:{language}",  # Select subtitle stream by language metadata
+                output_path
+            ]
             subprocess.run(cmd, check=True, capture_output=True)
+            extraction_success = True
+        except subprocess.CalledProcessError as e:
+            error_message = f"Method 1 failed: {str(e)}"
+            print(error_message)
+        
+        # Method 2: Try to extract the first subtitle stream
+        if not extraction_success:
+            try:
+                print("Trying extraction method 2: first subtitle stream")
+                cmd = [
+                    "ffmpeg",
+                    "-i", video_path,
+                    "-map", "0:s:0",  # Select first subtitle stream
+                    output_path
+                ]
+                subprocess.run(cmd, check=True, capture_output=True)
+                extraction_success = True
+            except subprocess.CalledProcessError as e:
+                error_message += f"\nMethod 2 failed: {str(e)}"
+                print(f"Method 2 failed: {str(e)}")
+        
+        # Method 3: Try to extract using codec copy
+        if not extraction_success:
+            try:
+                print("Trying extraction method 3: codec copy")
+                cmd = [
+                    "ffmpeg",
+                    "-i", video_path,
+                    "-c:s", "copy",
+                    output_path
+                ]
+                subprocess.run(cmd, check=True, capture_output=True)
+                extraction_success = True
+            except subprocess.CalledProcessError as e:
+                error_message += f"\nMethod 3 failed: {str(e)}"
+                print(f"Method 3 failed: {str(e)}")
+        
+        # Method 4: Try to extract embedded subtitles
+        if not extraction_success:
+            try:
+                print("Trying extraction method 4: extract embedded subtitles")
+                cmd = [
+                    "ffmpeg",
+                    "-i", video_path,
+                    "-c:s", "srt",
+                    output_path
+                ]
+                subprocess.run(cmd, check=True, capture_output=True)
+                extraction_success = True
+            except subprocess.CalledProcessError as e:
+                error_message += f"\nMethod 4 failed: {str(e)}"
+                print(f"Method 4 failed: {str(e)}")
+        
+        if extraction_success:
             update_task_status(task_id, "extracted", {
                 "progress": 100,
                 "subtitle_path": output_path
             })
-        except subprocess.CalledProcessError:
-            # Try alternative method if mapping by language fails
-            cmd = [
-                "ffmpeg",
-                "-i", video_path,
-                "-c:s", "srt",
-                output_path
-            ]
-            try:
-                subprocess.run(cmd, check=True, capture_output=True)
-                update_task_status(task_id, "extracted", {
-                    "progress": 100,
-                    "subtitle_path": output_path
-                })
-            except subprocess.CalledProcessError as e:
-                update_task_status(task_id, "error", {
-                    "message": f"Failed to extract subtitles: {e}"
-                })
+        else:
+            update_task_status(task_id, "error", {
+                "message": f"Failed to extract subtitles after trying multiple methods: {error_message}"
+            })
     
     except Exception as e:
         update_task_status(task_id, "error", {"message": str(e)})

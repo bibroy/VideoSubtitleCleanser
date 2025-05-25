@@ -1,0 +1,45 @@
+2025-05-24 22:19:08,540 - subtitle_cleanser - WARNING - Module boto3 not available
+2025-05-24 22:19:08,541 - subtitle_cleanser - WARNING - Module requests not available
+2025-05-24 22:19:08,542 - subtitle_cleanser - WARNING - Module language_tool_python not available
+2025-05-24 22:19:08,542 - subtitle_cleanser - WARNING - Module cv2 not available
+2025-05-24 22:19:08,543 - subtitle_cleanser - WARNING - Module numpy not available
+2025-05-24 22:19:29,604 - subtitle_cleanser - WARNING - Module boto3 not available
+2025-05-24 22:19:29,605 - subtitle_cleanser - WARNING - Module requests not available
+2025-05-24 22:19:29,606 - subtitle_cleanser - WARNING - Module language_tool_python not available
+2025-05-24 22:19:29,607 - subtitle_cleanser - WARNING - Module cv2 not available
+2025-05-24 22:19:29,608 - subtitle_cleanser - WARNING - Module numpy not available
+2025-05-24 22:19:29,614 - subtitle_cleanser - WARNING - Module boto3 not available
+2025-05-25 02:57:17,826 - subtitle_cleanser - WARNING - Module pydub not available
+2025-05-25 02:57:17,827 - subtitle_cleanser - WARNING - Module whisper not available
+2025-05-25 02:57:30,042 - subtitle_cleanser - ERROR - ERROR [VIDEO_ERROR]: Failed to upload data/videos/39609780-3334-41df-b3dd-dc2db0e68ac4.mp4 to your-bucket-name/39609780-3334-41df-b3dd-dc2db0e68ac4.mp4: An error occurred (AllAccessDisabled) when calling the CreateMultipartUpload operation: All access to this object has been disabled
+2025-05-25 02:57:30,043 - subtitle_cleanser - ERROR - ERROR [AWS_ERROR]: Failed to upload video to S3
+2025-05-25 02:59:00,607 - subtitle_cleanser - WARNING - Module pydub not available
+2025-05-25 02:59:00,607 - subtitle_cleanser - WARNING - Module whisper not available
+2025-05-25 02:59:25,955 - subtitle_cleanser - ERROR - ERROR [UNKNOWN_ERROR]: An error occurred (BadRequestException) when calling the StartTranscriptionJob operation: To enable alternatives, set ShowAlternatives to true and provide a value for MaxAlternatives.
+2025-05-25 02:59:25,958 - subtitle_cleanser - ERROR - ERROR [UNKNOWN_ERROR]: Failed to start transcription job
+2025-05-25 03:04:40,998 - subtitle_cleanser - WARNING - Module pydub not available
+2025-05-25 03:04:40,999 - subtitle_cleanser - WARNING - Module whisper not available
+2025-05-25 13:53:57,698 - subtitle_cleanser - WARNING - Module boto3 not available
+2025-05-25 13:53:57,701 - subtitle_cleanser - WARNING - Module requests not available
+2025-05-25 13:53:57,702 - subtitle_cleanser - WARNING - Module language_tool_python not available
+2025-05-25 13:53:57,702 - subtitle_cleanser - WARNING - Module cv2 not available
+2025-05-25 13:53:57,703 - subtitle_cleanser - WARNING - Module numpy not available
+2025-05-25 13:53:57,703 - subtitle_cleanser - WARNING - Module pydub not available
+2025-05-25 13:53:57,704 - subtitle_cleanser - WARNING - Module whisper not available
+2025-05-25 13:53:57,713 - subtitle_cleanser - WARNING - Module boto3 not available
+2025-05-25 13:53:57,714 - subtitle_cleanser - WARNING - Module cv2 not available
+2025-05-25 13:53:57,714 - subtitle_cleanser - WARNING - Module requests not available
+2025-05-25 13:53:57,715 - subtitle_cleanser - WARNING - Module language_tool_python not available
+2025-05-25 13:53:57,729 - subtitle_cleanser - WARNING - Module boto3 not available
+2025-05-25 13:59:40,384 - subtitle_cleanser - WARNING - Module boto3 not available
+2025-05-25 13:59:40,384 - subtitle_cleanser - WARNING - Module requests not available
+2025-05-25 13:59:40,385 - subtitle_cleanser - WARNING - Module language_tool_python not available
+2025-05-25 13:59:40,386 - subtitle_cleanser - WARNING - Module cv2 not available
+2025-05-25 13:59:40,387 - subtitle_cleanser - WARNING - Module numpy not available
+2025-05-25 13:59:40,387 - subtitle_cleanser - WARNING - Module pydub not available
+2025-05-25 13:59:40,388 - subtitle_cleanser - WARNING - Module whisper not available
+2025-05-25 13:59:40,392 - subtitle_cleanser - WARNING - Module boto3 not available
+2025-05-25 13:59:40,393 - subtitle_cleanser - WARNING - Module cv2 not available
+2025-05-25 13:59:40,394 - subtitle_cleanser - WARNING - Module requests not available
+2025-05-25 13:59:40,394 - subtitle_cleanser - WARNING - Module language_tool_python not available
+2025-05-25 13:59:40,402 - subtitle_cleanser - WARNING - Module boto3 not available
