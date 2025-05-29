@@ -1,1 +1,0 @@
-{"task_id": "5945fbdd-e746-48e3-beab-742969b1d4a7", "status": "error", "last_updated": "2025-05-24T22:16:22.922841", "message": "Failed to extract subtitles: Command '['ffmpeg', '-i', 'data/videos/5945fbdd-e746-48e3-beab-742969b1d4a7.mp4', '-c:s', 'srt', 'data\\\\uploads\\\\5945fbdd-e746-48e3-beab-742969b1d4a7.srt']' returned non-zero exit status 4294967274."}

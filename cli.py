@@ -28,11 +28,24 @@ def setup_argparse():
     process_parser = subparsers.add_parser("process", help="Process a subtitle file")
     process_parser.add_argument("--input", required=True, help="Path to the input subtitle file")
     process_parser.add_argument("--output", help="Path to the output subtitle file")
-    process_parser.add_argument("--format", default="vtt", choices=["srt", "vtt", "sub", "sbv", "smi", "ssa", "ass"], 
-                               help="Output format")
+    process_parser.add_argument("--format", default="both", choices=["srt", "vtt", "both", "vlc_srt", "ass", "sub", "sbv", "smi", "ssa"], 
+                               help="Output format. Use 'both' to generate both WebVTT and VLC-compatible SRT files, 'ass' for PotPlayer-compatible Advanced SubStation Alpha format")
+    
+    # Font style parameters for ASS format
+    font_style_group = process_parser.add_argument_group('ASS Font Style Options (only used with --format ass)')
+    font_style_group.add_argument("--font-name", default="Arial", help="Font family name (default: Arial)")
+    font_style_group.add_argument("--font-size", type=int, default=24, help="Font size in points (default: 24)")
+    font_style_group.add_argument("--primary-color", default="&H00FFFFFF", help="Text color in ASS format (default: &H00FFFFFF - white)")
+    font_style_group.add_argument("--outline-color", default="&H00000000", help="Outline color in ASS format (default: &H00000000 - black)")
+    font_style_group.add_argument("--back-color", default="&H80000000", help="Background color in ASS format (default: &H80000000 - semi-transparent black)")
+    font_style_group.add_argument("--bold", type=int, choices=[0, 1], default=0, help="Bold text (0=off, 1=on, default: 0)")
+    font_style_group.add_argument("--italic", type=int, choices=[0, 1], default=0, help="Italic text (0=off, 1=on, default: 0)")
+    font_style_group.add_argument("--outline", type=int, default=2, help="Outline thickness (default: 2)")
+    font_style_group.add_argument("--shadow", type=int, default=3, help="Shadow depth (default: 3)")
     process_parser.add_argument("--cleanse", action="store_true", help="Cleanse errors and fix formatting")
     process_parser.add_argument("--grammar", action="store_true", help="Correct grammar and spelling")
     process_parser.add_argument("--no-position", action="store_true", help="Disable position optimization")
+    process_parser.add_argument("--video", help="Path to the associated video file (required for position optimization)")
     process_parser.add_argument("--diarize", action="store_true", help="Enable speaker diarization")
     process_parser.add_argument("--use-aws", action="store_true", help="Use AWS Transcribe for speaker diarization (requires AWS credentials)")
     process_parser.add_argument("--max-speakers", type=int, default=10, help="Maximum number of speakers to identify")
@@ -51,9 +64,26 @@ def setup_argparse():
     transcribe_parser.add_argument("--input", required=True, help="Path to the input video file")
     transcribe_parser.add_argument("--output", help="Path to the output subtitle file")
     transcribe_parser.add_argument("--language", default="en-US", help="Language code for transcription (e.g., en-US, fr-FR)")
-    transcribe_parser.add_argument("--format", default="webvtt", choices=["webvtt", "srt"], help="Output subtitle format")
+    transcribe_parser.add_argument("--format", default="webvtt", choices=["webvtt", "srt", "ass"], 
+                                 help="Output subtitle format (webvtt, srt, or ass)")
+    
+    # Font style parameters for ASS format when transcribing
+    transcribe_font_style_group = transcribe_parser.add_argument_group('ASS Font Style Options (only used with --format ass)')
+    transcribe_font_style_group.add_argument("--font-name", default="Arial", help="Font family name (default: Arial)")
+    transcribe_font_style_group.add_argument("--font-size", type=int, default=24, help="Font size in points (default: 24)")
+    transcribe_font_style_group.add_argument("--primary-color", default="&H00FFFFFF", help="Text color in ASS format (default: &H00FFFFFF - white)")
+    transcribe_font_style_group.add_argument("--outline-color", default="&H00000000", help="Outline color in ASS format (default: &H00000000 - black)")
+    transcribe_font_style_group.add_argument("--back-color", default="&H80000000", help="Background color in ASS format (default: &H80000000 - semi-transparent black)")
+    transcribe_font_style_group.add_argument("--bold", type=int, choices=[0, 1], default=0, help="Bold text (0=off, 1=on, default: 0)")
+    transcribe_font_style_group.add_argument("--italic", type=int, choices=[0, 1], default=0, help="Italic text (0=off, 1=on, default: 0)")
+    transcribe_font_style_group.add_argument("--outline", type=int, default=2, help="Outline thickness (default: 2)")
+    transcribe_font_style_group.add_argument("--shadow", type=int, default=3, help="Shadow depth (default: 3)")
     transcribe_parser.add_argument("--tool", default="auto", choices=["aws", "whisper", "ffmpeg", "auto"], 
                                  help="Speech-to-text tool to use (aws, whisper, ffmpeg, or auto)")
+    transcribe_parser.add_argument("--grammar", action="store_true", help="Correct grammar and spelling")
+    transcribe_parser.add_argument("--diarize", action="store_true", help="Enable speaker diarization")
+    transcribe_parser.add_argument("--max-speakers", type=int, default=10, help="Maximum number of speakers to identify")
+    transcribe_parser.add_argument("--no-position", action="store_true", help="Disable position optimization")
     transcribe_parser.add_argument("--verbose", action="store_true", help="Verbose output")
     
     # Translate command
@@ -91,7 +121,29 @@ def process_subtitle_file(args):
     output_path = args.output
     if not output_path:
         base_name = os.path.splitext(os.path.basename(args.input))[0]
-        output_path = f"{base_name}_processed.{args.format}"
+        # Set appropriate extension based on format
+        if args.format == "ass":
+            extension = "ass"
+        elif args.format == "vtt":
+            extension = "vtt"
+        elif args.format in ["srt", "vlc_srt"]:
+            extension = "srt"
+        elif args.format == "both":
+            extension = "vtt"  # Default extension for 'both' format
+        else:
+            extension = args.format
+        output_path = f"{base_name}_processed.{extension}"
+    else:
+        # If output path is provided but has no extension, add the appropriate one
+        _, ext = os.path.splitext(output_path)
+        if not ext:
+            if args.format == "ass":
+                output_path = f"{output_path}.ass"
+            elif args.format == "vtt":
+                output_path = f"{output_path}.vtt"
+            elif args.format in ["srt", "vlc_srt"]:
+                output_path = f"{output_path}.srt"
+            # For 'both' format, don't add extension as it will create multiple files
     
     # Create a task ID
     task_id = str(uuid.uuid4())
@@ -109,7 +161,31 @@ def process_subtitle_file(args):
     
     with open(args.input, "rb") as src, open(task_file_path, "wb") as dst:
         dst.write(src.read())
-      # Create processing options
+    
+    # Handle video file if provided (for position optimization)
+    if args.video and os.path.exists(args.video):
+        if not is_valid_video_file(args.video):
+            print(f"Warning: Not a valid video file: {args.video}")
+        else:
+            # Create videos directory
+            ensure_directory_exists("data/videos")
+            
+            # Copy video to videos directory with task_id
+            video_ext = os.path.splitext(args.video)[1]
+            video_task_path = f"data/videos/{task_id}{video_ext}"
+            
+            if args.verbose:
+                print(f"Copying video file to: {video_task_path}")
+            
+            with open(args.video, "rb") as src, open(video_task_path, "wb") as dst:
+                dst.write(src.read())
+                
+            if args.verbose and not args.no_position:
+                print("Video file will be used for position optimization with AWS Rekognition")
+    elif not args.no_position:
+        print("Warning: No video file provided. Position optimization will be skipped.")
+        
+    # Create processing options
     options = {
         "cleanse_errors": args.cleanse,
         "correct_grammar": args.grammar,
@@ -124,6 +200,21 @@ def process_subtitle_file(args):
         "remove_duplicate_lines": True,
         "output_format": args.format
     }
+    
+    # Add font style options for ASS format
+    if args.format == "ass":
+        font_style = {
+            "font_name": args.font_name,
+            "font_size": args.font_size,
+            "primary_color": args.primary_color,
+            "outline_color": args.outline_color,
+            "back_color": args.back_color,
+            "bold": args.bold,
+            "italic": args.italic,
+            "outline": args.outline,
+            "shadow": args.shadow
+        }
+        options["font_style"] = font_style
     
     if args.verbose:
         print("Processing options:")
@@ -323,7 +414,24 @@ def transcribe_video(args):
     output_path = args.output
     if not output_path:
         base_name = os.path.splitext(os.path.basename(args.input))[0]
-        output_path = f"{base_name}_transcribed.{args.format}"
+        # Set appropriate extension based on format
+        if args.format == "ass":
+            extension = "ass"
+        elif args.format == "webvtt":
+            extension = "vtt"
+        else:
+            extension = args.format
+        output_path = f"{base_name}_transcribed.{extension}"
+    else:
+        # If output path is provided but has no extension, add the appropriate one
+        _, ext = os.path.splitext(output_path)
+        if not ext:
+            if args.format == "ass":
+                output_path = f"{output_path}.ass"
+            elif args.format == "webvtt":
+                output_path = f"{output_path}.vtt"
+            else:
+                output_path = f"{output_path}.{args.format}"
     
     # Create a task ID
     task_id = str(uuid.uuid4())
@@ -342,13 +450,37 @@ def transcribe_video(args):
     with open(args.input, "rb") as src, open(task_file_path, "wb") as dst:
         dst.write(src.read())
     
+    # Prepare options for transcription and formatting
+    options = {
+        "correct_grammar": args.grammar,
+        "optimize_position": not args.no_position,
+        "diarize_speakers": args.diarize,
+        "max_speakers": args.max_speakers
+    }
+    
+    # Add font style options for ASS format
+    if args.format == "ass":
+        font_style = {
+            "font_name": args.font_name,
+            "font_size": args.font_size,
+            "primary_color": args.primary_color,
+            "outline_color": args.outline_color,
+            "back_color": args.back_color,
+            "bold": args.bold,
+            "italic": args.italic,
+            "outline": args.outline,
+            "shadow": args.shadow
+        }
+        options["font_style"] = font_style
+    
     # Transcribe the video
     print(f"Transcribing video using {args.tool} tool with language: {args.language}...")
     processing_service.transcribe_video_to_subtitles(
         task_id=task_id, 
         language=args.language, 
         output_format=args.format,
-        tool=args.tool
+        tool=args.tool,
+        options=options
     )
     
     # Wait for completion

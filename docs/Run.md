@@ -208,6 +208,11 @@ Process a subtitle file:
 python cli.py process --input path/to/subtitle.vtt --output path/to/output.vtt --cleanse --grammar --position
 ```
 
+Generate ASS subtitles with custom font styling:
+```bash
+python cli.py process --input path/to/subtitle.vtt --output path/to/output.ass --format ass --font-name "Calibri" --font-size 28 --bold 1 --primary-color "&H00FFFFFF"
+```
+
 Extract embedded subtitles from a video:
 ```bash
 python cli.py extract --input path/to/video.mp4 --output path/to/output.vtt --language eng
@@ -240,7 +245,42 @@ Process command options:
 - `--grammar`: Enable grammar correction
 - `--no-position`: Disable position optimization
 - `--diarize`: Enable speaker diarization
-- `--format`: Output format (default: vtt)
+- `--format`: Output format (default: both)
+  - `vtt`: WebVTT format for web players
+  - `srt`: Standard SRT format
+  - `vlc_srt`: VLC-compatible SRT format with positioning
+  - `ass`: Advanced SubStation Alpha format for PotPlayer and other advanced players
+  - `both`: Generate both WebVTT and VLC-compatible SRT files
+
+### ASS Format Font Style Options
+
+When using `--format ass`, the following font style options are available:
+
+- `--font-name`: Font family name (default: Arial)
+- `--font-size`: Font size in points (default: 24)
+- `--primary-color`: Text color in ASS format (default: &H00FFFFFF - white)
+- `--outline-color`: Outline color in ASS format (default: &H00000000 - black)
+- `--back-color`: Background color in ASS format (default: &H80000000 - semi-transparent black)
+- `--bold`: Bold text (0=off, 1=on, default: 0)
+- `--italic`: Italic text (0=off, 1=on, default: 0)
+- `--outline`: Outline thickness (default: 2)
+- `--shadow`: Shadow depth (default: 3)
+
+#### ASS Color Format
+
+ASS colors are specified in the format `&HAABBGGRR` where:
+- AA = Alpha (transparency) - 00 is fully opaque
+- BB = Blue component
+- GG = Green component
+- RR = Red component
+
+Common colors:
+- White: `&H00FFFFFF`
+- Black: `&H00000000`
+- Yellow: `&H0000FFFF`
+- Red: `&H000000FF`
+- Green: `&H0000FF00`
+- Blue: `&H00FF0000`
 
 Extract command options:
 - `--language`: Language code for extraction (default: eng)
