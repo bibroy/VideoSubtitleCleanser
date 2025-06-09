@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Subtitle Generator</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Video Subtitle Generator</h1>
+            <p>Generate Advanced SubStation Alpha (.ASS) subtitle files with customizable features</p>
+        </header>
+
+        <main>
+            <div class="upload-container" id="upload-container">
+                <div class="upload-area" id="upload-area">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <h3>Drag & Drop your video file here</h3>
+                    <p>or</p>
+                    <button type="button" id="browse-button" class="upload-button">Browse Files</button>
+                    <input type="file" id="file-input" accept=".mp4,.avi,.mov,.mkv,.webm" hidden>
+                </div>
+                <div class="file-info" id="file-info" style="display: none;">
+                    <div class="file-details">
+                        <i class="fas fa-file-video"></i>
+                        <div class="file-name-container">
+                            <span id="file-name">filename.mp4</span>
+                            <button id="remove-file" class="remove-button"><i class="fas fa-times"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="options-container" id="options-container" style="display: none;">
+                <h2>Subtitle Generation Options</h2>
+                
+                <div class="option-group">
+                    <h3>Transcription Settings</h3>
+                    <div class="option">
+                        <label for="source-language">Source Language:</label>
+                        <select id="source-language" class="form-control">
+                            <option value="auto">Auto Detect</option>
+                            <option value="en-US">English (US)</option>
+                            <!-- Other languages will be loaded dynamically -->
+                        </select>
+                    </div>
+                    
+                    <div class="option">
+                        <label for="tool">Transcription Tool:</label>
+                        <select id="tool" class="form-control">
+                            <option value="auto">Auto (AWS with Whisper fallback)</option>
+                            <option value="aws">AWS Transcribe</option>
+                            <option value="whisper">Whisper</option>
+                        </select>
+                    </div>
+                    
+                    <div class="option checkbox">
+                        <input type="checkbox" id="diarize" checked>
+                        <label for="diarize">Enable Speaker Diarization</label>
+                    </div>
+                    
+                    <div class="option checkbox">
+                        <input type="checkbox" id="grammar">
+                        <label for="grammar">Apply Grammar Correction</label>
+                    </div>
+                    
+                    <div class="option checkbox">
+                        <input type="checkbox" id="detect-text" checked>
+                        <label for="detect-text">Detect Text in Video (Reposition Subtitles)</label>
+                    </div>
+                </div>
+                
+                <div class="option-group">
+                    <h3>Translation Settings</h3>
+                    <div class="option">
+                        <label for="target-language">Target Language (Optional):</label>
+                        <select id="target-language" class="form-control">
+                            <option value="">No Translation</option>
+                            <!-- Other languages will be loaded dynamically -->
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="option-group">
+                    <h3>Font Style Settings</h3>
+                    <div class="option">
+                        <label for="font-name">Font Name:</label>
+                        <select id="font-name" class="form-control">
+                            <option value="Arial">Arial</option>
+                            <option value="Helvetica">Helvetica</option>
+                            <option value="Times New Roman">Times New Roman</option>
+                            <option value="Courier New">Courier New</option>
+                            <option value="Verdana">Verdana</option>
+                            <option value="Georgia">Georgia</option>
+                            <option value="Comic Sans MS">Comic Sans MS</option>
+                        </select>
+                    </div>
+                    
+                    <div class="option">
+                        <label for="font-size">Font Size:</label>
+                        <input type="number" id="font-size" class="form-control" value="24" min="10" max="72">
+                    </div>
+                    
+                    <div class="option">
+                        <label for="primary-color">Text Color:</label>
+                        <div class="color-picker-container">
+                            <input type="color" id="primary-color-picker" value="#FFFFFF">
+                            <input type="text" id="primary-color" class="form-control" value="&H00FFFFFF">
+                        </div>
+                    </div>
+                    
+                    <div class="option">
+                        <label for="outline-color">Outline Color:</label>
+                        <div class="color-picker-container">
+                            <input type="color" id="outline-color-picker" value="#000000">
+                            <input type="text" id="outline-color" class="form-control" value="&H00000000">
+                        </div>
+                    </div>
+                    
+                    <div class="option">
+                        <label for="back-color">Background Color:</label>
+                        <div class="color-picker-container">
+                            <input type="color" id="back-color-picker" value="#000000">
+                            <input type="text" id="back-color" class="form-control" value="&H80000000">
+                        </div>
+                    </div>
+                    
+                    <div class="option checkbox">
+                        <input type="checkbox" id="bold">
+                        <label for="bold">Bold</label>
+                    </div>
+                    
+                    <div class="option checkbox">
+                        <input type="checkbox" id="italic">
+                        <label for="italic">Italic</label>
+                    </div>
+                    
+                    <div class="option">
+                        <label for="outline">Outline Thickness:</label>
+                        <input type="number" id="outline" class="form-control" value="2" min="0" max="10">
+                    </div>
+                    
+                    <div class="option">
+                        <label for="shadow">Shadow Depth:</label>
+                        <input type="number" id="shadow" class="form-control" value="3" min="0" max="10">
+                    </div>
+                </div>
+                
+                <div class="submit-container">
+                    <button id="generate-button" class="generate-button">Generate Subtitle</button>
+                </div>
+            </div>
+            
+            <div class="progress-container" id="progress-container" style="display: none;">
+                <h2>Generating Subtitle...Please wait</h2>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="progress-bar"></div>
+                </div>
+                <p id="progress-text">Uploading video file...</p>
+            </div>
+            
+            <div class="result-container" id="result-container" style="display: none;">
+                <h2>Subtitle Generated Successfully!</h2>
+                <div class="result-info">
+                    <p>Your subtitle file for the video: '<span id="video-filename-display"></span>' is ready to download.</p>
+                    <a id="download-link" class="download-button">
+                        <i class="fas fa-download"></i> Download Subtitle
+                    </a>
+                    <button id="new-subtitle" class="new-button">Generate Another Subtitle</button>
+                </div>
+                
+                <div class="download-history-container">
+                    <h3>Download History</h3>
+                    <div id="download-history" class="download-history">
+                        <!-- Download history items will be added here -->
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <footer>
+            <p>&copy; 2025 Video Subtitle Generator </p>
+        </footer>
+    </div>
+    
+    <script src="js/script.js"></script>
+</body>
+</html>

@@ -26,13 +26,13 @@ load_dotenv()
 
 # AWS Configuration
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
-AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", "")
+AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY", "")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "")
 AWS_S3_BUCKET = os.getenv("AWS_S3_BUCKET", "videosubtitlecleanser-data")
 AWS_TRANSCRIBE_LANGUAGE_CODE = os.getenv("AWS_TRANSCRIBE_LANGUAGE_CODE", "en-US")
 
 # AWS Service availability flags
-HAS_AWS_CREDENTIALS = bool(AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY)
+HAS_AWS_CREDENTIALS = bool(AWS_ACCESS_KEY and AWS_SECRET_ACCESS_KEY)
 CAN_USE_AWS = bool(boto3 and HAS_AWS_CREDENTIALS)
 CAN_USE_S3 = CAN_USE_AWS
 CAN_USE_TRANSCRIBE = CAN_USE_AWS
@@ -94,7 +94,7 @@ def get_aws_client(service_name: str) -> Any:
         return boto3.client(
             service_name,
             region_name=AWS_REGION,
-            aws_access_key_id=AWS_ACCESS_KEY_ID,
+            aws_access_key_id=AWS_ACCESS_KEY,
             aws_secret_access_key=AWS_SECRET_ACCESS_KEY
         )
     except Exception as e:
@@ -164,7 +164,7 @@ def delete_from_s3(s3_key: str) -> Dict[str, Any]:
         return log_error(e, "S3 delete error")
 
 @error_handler
-def start_transcription_job(job_name: str, media_uri: str, settings: Dict[str, Any] = None) -> Dict[str, Any]:
+def start_transcription_job(job_name: str, media_uri: str, settings: Dict[str, Any] = None, language_code: str = None) -> Dict[str, Any]:
     """
     Start an AWS Transcribe job with error handling
     
@@ -172,6 +172,7 @@ def start_transcription_job(job_name: str, media_uri: str, settings: Dict[str, A
         job_name: Name for the transcription job
         media_uri: URI of the media file (s3:// path)
         settings: Additional transcription settings
+        language_code: Language code for transcription (e.g., en-US, bn-IN)
         
     Returns:
         Dict with job info
@@ -200,13 +201,40 @@ def start_transcription_job(job_name: str, media_uri: str, settings: Dict[str, A
             job_settings.update(settings)
             
         # Start transcription job
-        response = transcribe.start_transcription_job(
-            TranscriptionJobName=job_name,
-            Media={'MediaFileUri': media_uri},
-            MediaFormat=media_format,
-            LanguageCode=AWS_TRANSCRIBE_LANGUAGE_CODE,
-            Settings=job_settings
-        )
+        # Use provided language_code or fall back to environment variable
+        lang_code = language_code if language_code else AWS_TRANSCRIBE_LANGUAGE_CODE
+        
+        # Enhanced debugging for language parameter
+        print(f"DEBUG: AWS Utils - language_code parameter received: '{language_code}' (type: {type(language_code).__name__})")
+        print(f"DEBUG: AWS Utils - AWS_TRANSCRIBE_LANGUAGE_CODE env var: '{AWS_TRANSCRIBE_LANGUAGE_CODE}'")
+        print(f"DEBUG: AWS Utils - Final lang_code being used: '{lang_code}'")
+        
+        # Handle automatic language detection
+        if lang_code == 'auto':
+            print(f"DEBUG: AWS Utils - Using automatic language identification")
+            response = transcribe.start_transcription_job(
+                TranscriptionJobName=job_name,
+                Media={'MediaFileUri': media_uri},
+                MediaFormat=media_format,
+                IdentifyLanguage=True,
+                Settings=job_settings
+            )
+        else:
+            # Ensure language code is valid for AWS Transcribe
+            if lang_code == 'bn':
+                # Fix incorrect Bengali code - should be bn-IN not bn
+                print(f"DEBUG: AWS Utils - Correcting Bengali language code from 'bn' to 'bn-IN'")
+                lang_code = 'bn-IN'
+            
+            print(f"DEBUG: AWS Utils - Starting AWS Transcribe job with language code: '{lang_code}'")
+            
+            response = transcribe.start_transcription_job(
+                TranscriptionJobName=job_name,
+                Media={'MediaFileUri': media_uri},
+                MediaFormat=media_format,
+                LanguageCode=lang_code,
+                Settings=job_settings
+            )
         
         return {
             "success": True,

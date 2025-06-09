@@ -146,7 +146,6 @@ For more detailed information, please refer to the following documentation:
 
 ### Backend
 - Python
-- FastAPI
 - AWS AI/ML and Generative AI services
 
 ### Frontend

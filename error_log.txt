@@ -1,0 +1,10 @@
+2025-06-04 00:16:34,782 - botocore.credentials - INFO - Found credentials in environment variables.
+2025-06-04 00:19:05,468 - botocore.credentials - INFO - Found credentials in environment variables.
+2025-06-04 00:22:43,644 - botocore.credentials - INFO - Found credentials in environment variables.
+2025-06-04 06:25:04,166 - botocore.credentials - INFO - Found credentials in environment variables.
+2025-06-04 06:32:14,969 - botocore.credentials - INFO - Found credentials in environment variables.
+2025-06-08 06:52:40,668 - subtitle_cleanser - WARNING - Module cv2 not available
+2025-06-08 06:52:40,669 - subtitle_cleanser - WARNING - Module requests not available
+2025-06-08 06:52:40,670 - subtitle_cleanser - WARNING - Module language_tool_python not available
+2025-06-08 16:06:05,500 - subtitle_cleanser - ERROR - ERROR [UNKNOWN_ERROR]: start_transcription_job() got an unexpected keyword argument 'language_code'
+2025-06-08 16:14:54,066 - subtitle_cleanser - ERROR - ERROR [AWS_ERROR]: An error occurred (BadRequestException) when calling the StartTranscriptionJob operation: The S3 URI that you provided can't be accessed. Make sure that you have read permission and try your request again.

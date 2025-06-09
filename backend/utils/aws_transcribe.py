@@ -12,12 +12,12 @@ from botocore.exceptions import ClientError, NoCredentialsError
 
 # AWS Configuration
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
-AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID", "")
+AWS_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY", "")
 AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY", "")
 AWS_S3_BUCKET = os.environ.get("AWS_S3_BUCKET", "videosubtitlecleanser-data")
 
 # AWS Service availability flags
-HAS_AWS_CREDENTIALS = bool(AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY)
+HAS_AWS_CREDENTIALS = bool(AWS_ACCESS_KEY and AWS_SECRET_ACCESS_KEY)
 CAN_USE_AWS = bool(boto3 and HAS_AWS_CREDENTIALS)
 CAN_USE_S3 = CAN_USE_AWS
 CAN_USE_TRANSCRIBE = CAN_USE_AWS
@@ -34,7 +34,7 @@ def get_aws_client(service_name):
         return boto3.client(
             service_name,
             region_name=AWS_REGION,
-            aws_access_key_id=AWS_ACCESS_KEY_ID,
+            aws_access_key_id=AWS_ACCESS_KEY,
             aws_secret_access_key=AWS_SECRET_ACCESS_KEY
         )
     except Exception as e:
@@ -93,7 +93,7 @@ def start_transcription_job(job_name, media_uri, settings=None, language_code="e
         job_name: Name for the transcription job
         media_uri: URI of the media file (s3:// path)
         settings: Additional transcription settings
-        language_code: Language code for transcription (e.g., en-US)
+        language_code: Language code for transcription (e.g., en-US) or 'auto' for automatic detection
         
     Returns:
         Dict with job info
@@ -117,9 +117,23 @@ def start_transcription_job(job_name, media_uri, settings=None, language_code="e
             'MaxSpeakerLabels': 10
         }
         
-        # Update with custom settings if provided
+        # Update with custom settings if provided, but filter out invalid parameters
         if settings:
-            job_settings.update(settings)
+            # Only include valid AWS Transcribe settings parameters
+            valid_settings_keys = [
+                'ShowSpeakerLabels', 'MaxSpeakerLabels', 'ChannelIdentification',
+                'ShowAlternatives', 'MaxAlternatives', 'VocabularyFilterName',
+                'VocabularyFilterMethod', 'VocabularyName'
+            ]
+            
+            # Filter settings to only include valid keys
+            filtered_settings = {k: v for k, v in settings.items() if k in valid_settings_keys}
+            job_settings.update(filtered_settings)
+            
+            # Handle target language if specified (for reference, not used in API call)
+            if 'target_language' in settings:
+                print(f"Note: Target language '{settings['target_language']}' specified, but AWS Transcribe API doesn't support direct translation.")
+                print("Proceeding with transcription only in source language.")
             
         # Print job details for debugging
         print(f"Starting AWS Transcribe job: {job_name}")
@@ -128,14 +142,47 @@ def start_transcription_job(job_name, media_uri, settings=None, language_code="e
         print(f"Language Code: {language_code}")
         print(f"Settings: {json.dumps(job_settings, indent=2)}")
         
-        # Start transcription job
-        response = transcribe.start_transcription_job(
-            TranscriptionJobName=job_name,
-            Media={'MediaFileUri': media_uri},
-            MediaFormat=media_format,
-            LanguageCode=language_code,
-            Settings=job_settings
-        )
+        # Check if any invalid parameters were in the original settings
+        if settings:
+            invalid_keys = [k for k in settings.keys() if k not in valid_settings_keys and k != 'target_language']
+            if invalid_keys:
+                print(f"Warning: Removed invalid settings parameters: {', '.join(invalid_keys)}")
+        
+        # Start transcription job with appropriate language settings
+        try:
+            if language_code == 'auto':
+                print("Using AWS Transcribe automatic language detection")
+                # For automatic language detection, we don't specify LanguageCode at all
+                response = transcribe.start_transcription_job(
+                    TranscriptionJobName=job_name,
+                    Media={'MediaFileUri': media_uri},
+                    MediaFormat=media_format,
+                    IdentifyLanguage=True,
+                    Settings=job_settings
+                )
+            else:
+                # Use specified language code
+                response = transcribe.start_transcription_job(
+                    TranscriptionJobName=job_name,
+                    Media={'MediaFileUri': media_uri},
+                    MediaFormat=media_format,
+                    LanguageCode=language_code,
+                    Settings=job_settings
+                )
+        except ClientError as e:
+            if 'Value \'auto\' at \'languageCode\'' in str(e):
+                # Handle the specific error when 'auto' is rejected as a language code
+                print("Retrying with IdentifyLanguage=True instead of language_code='auto'")
+                response = transcribe.start_transcription_job(
+                    TranscriptionJobName=job_name,
+                    Media={'MediaFileUri': media_uri},
+                    MediaFormat=media_format,
+                    IdentifyLanguage=True,
+                    Settings=job_settings
+                )
+            else:
+                # Re-raise if it's a different error
+                raise
         
         print(f"Transcription job started successfully: {job_name}")
         
@@ -146,7 +193,7 @@ def start_transcription_job(job_name, media_uri, settings=None, language_code="e
         }
     except ClientError as e:
         error_message = str(e)
-        print(f"AWS Transcribe client error: {error_message}")
+        print(f"AWS Transcribe error: {error_message}")
         traceback.print_exc()
         return {"success": False, "error": error_message}
     except Exception as e:
