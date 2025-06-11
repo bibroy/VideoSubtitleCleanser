@@ -25,11 +25,12 @@ API_PREFIX = f"/api/{API_VERSION}"
 
 # AWS Settings (from environment variables)
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
-AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY", "")
+# Support both AWS_ACCESS_KEY and AWS_ACCESS_KEY_ID (standard AWS naming)
+AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY", os.getenv("AWS_ACCESS_KEY_ID", ""))
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "")
 
 # AWS Service Configuration
-AWS_S3_BUCKET = os.getenv("AWS_S3_BUCKET", "videosubtitlecleanser-data")
+AWS_S3_BUCKET = os.getenv("AWS_S3_BUCKET", "videosubtitlecleanser-data-1")
 AWS_TRANSCRIBE_LANGUAGE_CODE = os.getenv("AWS_TRANSCRIBE_LANGUAGE_CODE", "en-US")
 
 # Processing Settings

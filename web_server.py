@@ -56,6 +56,8 @@ TRANSCRIPTION_LANGUAGES = {
     'en-US': 'English (US)',
     'en-GB': 'English (UK)',
     'en-AU': 'English (Australia)',
+    'bn-IN': 'Bengali',
+    'hi-IN': 'Hindi',
     'fr-FR': 'French',
     'de-DE': 'German',
     'es-ES': 'Spanish',
@@ -63,14 +65,14 @@ TRANSCRIPTION_LANGUAGES = {
     'ja-JP': 'Japanese',
     'ko-KR': 'Korean',
     'pt-BR': 'Portuguese (Brazil)',
-    'zh-CN': 'Chinese (Mandarin)',
-    'bn-IN': 'Bengali',
-    'hi-IN': 'Hindi'
+    'zh-CN': 'Chinese (Mandarin)'    
 }
 
 # Common language codes for translation (AWS Translate)
 TRANSLATION_LANGUAGES = {
     'en': 'English',
+    'hi': 'Hindi',
+    'bn': 'Bengali',
     'fr': 'French',
     'de': 'German',
     'es': 'Spanish',
@@ -79,9 +81,7 @@ TRANSLATION_LANGUAGES = {
     'ko': 'Korean',
     'pt': 'Portuguese',
     'zh': 'Chinese (Simplified)',
-    'ar': 'Arabic',
-    'hi': 'Hindi',
-    'bn': 'Bengali',
+    'ar': 'Arabic',    
     'ru': 'Russian'
 }
 

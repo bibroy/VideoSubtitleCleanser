@@ -20,16 +20,21 @@ cv2 = try_import('cv2')
 requests = try_import('requests')
 language_tool_python = try_import('language_tool_python')
 
-# Check for environment variables
-from dotenv import load_dotenv
-load_dotenv()
+# Import AWS configuration from .env file via backend/config.py
+from backend.config import (
+    AWS_REGION,
+    AWS_ACCESS_KEY,
+    AWS_SECRET_ACCESS_KEY,
+    AWS_S3_BUCKET,
+    AWS_TRANSCRIBE_LANGUAGE_CODE
+)
 
-# AWS Configuration
-AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
-AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY", "")
-AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "")
-AWS_S3_BUCKET = os.getenv("AWS_S3_BUCKET", "videosubtitlecleanser-data")
-AWS_TRANSCRIBE_LANGUAGE_CODE = os.getenv("AWS_TRANSCRIBE_LANGUAGE_CODE", "en-US")
+# Debug AWS configuration
+print(f"AWS Configuration in aws_utils.py:")
+print(f"  - AWS Region: {AWS_REGION}")
+print(f"  - AWS Access Key: {'Set' if AWS_ACCESS_KEY else 'Not set'}")
+print(f"  - AWS Secret Key: {'Set' if AWS_SECRET_ACCESS_KEY else 'Not set'}")
+print(f"  - AWS S3 Bucket: {AWS_S3_BUCKET}")
 
 # AWS Service availability flags
 HAS_AWS_CREDENTIALS = bool(AWS_ACCESS_KEY and AWS_SECRET_ACCESS_KEY)
@@ -88,15 +93,28 @@ def get_aws_client(service_name: str) -> Any:
         AWS service client or None if not available
     """
     if not boto3 or not HAS_AWS_CREDENTIALS:
+        print(f"Cannot create AWS {service_name} client: {'boto3 not available' if not boto3 else 'credentials not found'}")
         return None
         
     try:
-        return boto3.client(
+        # First try with explicit credentials
+        client = boto3.client(
             service_name,
             region_name=AWS_REGION,
             aws_access_key_id=AWS_ACCESS_KEY,
             aws_secret_access_key=AWS_SECRET_ACCESS_KEY
         )
+        
+        # Test the client with a simple operation to verify credentials
+        if service_name == 's3':
+            try:
+                client.list_buckets()
+                print(f"Successfully connected to AWS {service_name}")
+            except Exception as e:
+                log_error(e, f"AWS {service_name} credentials test failed")
+                return None
+                
+        return client
     except Exception as e:
         log_error(e, f"Failed to create AWS {service_name} client")
         return None

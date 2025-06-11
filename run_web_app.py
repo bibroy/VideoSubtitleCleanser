@@ -38,11 +38,11 @@ def main():
     # Start browser in a new thread
     threading.Thread(target=open_browser).start()
     
-    # Import and run the pure Python server
+    # Import and run the web server
     try:
-        from backend.api.server import run_server
-        print("Starting pure Python web server...")
-        run_server(host='0.0.0.0', port=5000)
+        from web_server import run_server
+        print("Starting web server...")
+        run_server(host='0.0.0.0', port=5000, open_browser_automatically=False)
     except Exception as e:
         print(f"Error starting web server: {e}")
         return 1

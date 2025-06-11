@@ -10,11 +10,15 @@ import boto3
 import traceback
 from botocore.exceptions import ClientError, NoCredentialsError
 
-# AWS Configuration
-AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
-AWS_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY", "")
-AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY", "")
-AWS_S3_BUCKET = os.environ.get("AWS_S3_BUCKET", "videosubtitlecleanser-data")
+# Import AWS configuration from .env file via backend/config.py
+from backend.config import AWS_REGION, AWS_ACCESS_KEY, AWS_SECRET_ACCESS_KEY, AWS_S3_BUCKET
+
+# Debug AWS configuration
+print(f"AWS Configuration in aws_transcribe.py:")
+print(f"  - AWS Region: {AWS_REGION}")
+print(f"  - AWS Access Key: {'Set' if AWS_ACCESS_KEY else 'Not set'}")
+print(f"  - AWS Secret Key: {'Set' if AWS_SECRET_ACCESS_KEY else 'Not set'}")
+print(f"  - AWS S3 Bucket: {AWS_S3_BUCKET}")
 
 # AWS Service availability flags
 HAS_AWS_CREDENTIALS = bool(AWS_ACCESS_KEY and AWS_SECRET_ACCESS_KEY)
@@ -31,12 +35,24 @@ def get_aws_client(service_name):
         return None
         
     try:
-        return boto3.client(
+        # First try with explicit credentials
+        client = boto3.client(
             service_name,
             region_name=AWS_REGION,
             aws_access_key_id=AWS_ACCESS_KEY,
             aws_secret_access_key=AWS_SECRET_ACCESS_KEY
         )
+        
+        # Test the client with a simple operation to verify credentials
+        if service_name == 's3':
+            try:
+                client.list_buckets()
+                print(f"Successfully connected to AWS {service_name}")
+            except Exception as e:
+                print(f"AWS {service_name} credentials test failed: {e}")
+                return None
+                
+        return client
     except Exception as e:
         print(f"Failed to create AWS {service_name} client: {e}")
         traceback.print_exc()

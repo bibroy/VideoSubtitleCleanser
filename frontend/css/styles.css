@@ -44,6 +44,10 @@ header h1 {
 }
 
 header p {
+    font-size: 1.1rem;
+}
+
+.feature-text {
     color: var(--secondary-color);
     font-size: 1.1rem;
 }

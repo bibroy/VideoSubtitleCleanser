@@ -36,16 +36,21 @@ except ImportError:
     print("Warning: python-dotenv not installed. Environment variables must be set manually.")
 
 # Import backend config to ensure all paths and settings are initialized
+# This will load AWS credentials from .env file through the dotenv loader in config.py
 try:
     from backend.config import AWS_REGION, AWS_ACCESS_KEY, AWS_SECRET_ACCESS_KEY, AWS_S3_BUCKET
-    print(f"Loaded AWS configuration from backend.config")
+    print(f"Loaded AWS configuration from .env file via backend/config.py")
 except ImportError:
-    print("Warning: Could not import backend.config")
-    # Fallback to environment variables
-    AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
-    AWS_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY", "")
-    AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY", "")
-    AWS_S3_BUCKET = os.environ.get("AWS_S3_BUCKET", "videosubtitlecleanser-data")
+    print("Error: Could not import AWS configuration from .env file via backend/config.py")
+    print("Please ensure backend/config.py exists and .env file is properly configured.")
+    sys.exit(1)
+    
+# Debug AWS configuration
+    print(f"AWS Configuration in video_to_subtitle.py:")
+    print(f"  - AWS Region: {AWS_REGION}")
+    print(f"  - AWS Access Key: {'Set' if AWS_ACCESS_KEY else 'Not set'}")
+    print(f"  - AWS Secret Key: {'Set' if AWS_SECRET_ACCESS_KEY else 'Not set'}")
+    print(f"  - AWS S3 Bucket: {AWS_S3_BUCKET}")
 
 # Import AWS utilities from the existing codebase
 try:
@@ -92,11 +97,13 @@ except ImportError:
     import boto3
     from botocore.exceptions import ClientError, NoCredentialsError
     
-    # Check for AWS credentials
-    AWS_ACCESS_KEY = os.environ.get('AWS_ACCESS_KEY')
-    AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
-    AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
-    AWS_S3_BUCKET = os.environ.get('AWS_S3_BUCKET', 'videosubtitlecleanser-data')
+    # AWS credentials are already imported from backend.config
+    # Debug AWS configuration
+    print(f"AWS Configuration in video_to_subtitle.py (fallback):")
+    print(f"  - AWS Region: {AWS_REGION}")
+    print(f"  - AWS Access Key: {'Set' if AWS_ACCESS_KEY else 'Not set'}")
+    print(f"  - AWS Secret Key: {'Set' if AWS_SECRET_ACCESS_KEY else 'Not set'}")
+    print(f"  - AWS S3 Bucket: {AWS_S3_BUCKET}")
     
     # Set AWS availability flags
     HAS_AWS_CREDENTIALS = bool(AWS_ACCESS_KEY and AWS_SECRET_ACCESS_KEY)
@@ -106,7 +113,7 @@ except ImportError:
         print("  - AWS_ACCESS_KEY: Your AWS access key")
         print("  - AWS_SECRET_ACCESS_KEY: Your AWS secret key")
         print("  - AWS_REGION: (Optional) AWS region (default: us-east-1)")
-        print("  - AWS_S3_BUCKET: (Optional) S3 bucket name (default: videosubtitlecleanser-data)")
+        print("  - AWS_S3_BUCKET: (Optional) S3 bucket name (default: videosubtitlecleanser-data-1)")
         print("\nYou can set these in a .env file in the project directory or in your system environment.")
         print("The script will fall back to Whisper if AWS credentials are not available.")
 
@@ -139,6 +146,18 @@ except ImportError:
                     region_name=AWS_REGION
                 )
                 print(f"AWS session configured with region: {AWS_REGION}")
+                
+                # Test AWS connectivity
+                try:
+                    s3 = boto3.client('s3')
+                    s3.list_buckets()
+                    print("AWS credentials verified successfully - S3 connection test passed")
+                except Exception as e:
+                    print(f"AWS credentials verification failed: {e}")
+                    print("This may indicate invalid or expired credentials")
+                    CAN_USE_AWS = False
+                    CAN_USE_TRANSCRIBE = False
+                    CAN_USE_S3 = False
             except Exception as e:
                 print(f"Error setting up AWS session: {e}")
                 CAN_USE_AWS = False
@@ -1837,23 +1856,25 @@ def main():
             if not boto3:
                 print("Error: boto3 library is not installed. Please install it with: pip install boto3")
             
-            # Check environment variables
-            aws_key = os.environ.get('AWS_ACCESS_KEY')
-            aws_secret = os.environ.get('AWS_SECRET_ACCESS_KEY')
-            aws_region = os.environ.get('AWS_REGION')
-            aws_bucket = os.environ.get('AWS_S3_BUCKET')
+            # Check AWS credentials - using values imported from backend.config
+            # These are already loaded from .env file
+            aws_key = AWS_ACCESS_KEY
+            aws_secret = AWS_SECRET_ACCESS_KEY
+            aws_region = AWS_REGION
             
-            print("\nAWS Configuration Status:")
-            print(f"  AWS_ACCESS_KEY: {'Set' if aws_key else 'NOT SET - Required'}")
+            print("\nAWS Credentials Status:")
+            print(f"  AWS_ACCESS_KEY: {'Set' if aws_key else 'NOT SET - Required'}")  
             print(f"  AWS_SECRET_ACCESS_KEY: {'Set' if aws_secret else 'NOT SET - Required'}")
-            print(f"  AWS_REGION: {aws_region if aws_region else 'Not set (using default us-east-1)'}")
-            print(f"  AWS_S3_BUCKET: {aws_bucket if aws_bucket else 'Not set (using default bucket)'}")
+            print(f"  AWS_REGION: {'Set' if aws_region else 'Not set - will use default'}")
             
-            print("\nTo use AWS Transcribe, please set the required environment variables:")
-            print("  set AWS_ACCESS_KEY=your_access_key")
-            print("  set AWS_SECRET_ACCESS_KEY=your_secret_key")
-            print("  set AWS_REGION=your_region (optional, defaults to us-east-1)")
-            print("  set AWS_S3_BUCKET=your_bucket (optional)")
+            if not aws_key or not aws_secret:
+                print("\nTo use AWS Transcribe, set these environment variables in your .env file:")
+                print("  AWS_ACCESS_KEY=your_access_key")
+                print("  AWS_SECRET_ACCESS_KEY=your_secret_key")
+                print("  AWS_REGION=your_region (optional)")
+                print("  AWS_S3_BUCKET=your_bucket (optional)")
+                print("\nMake sure your .env file is in the project directory.")
+                print("AWS credentials are only loaded from the .env file.")
             
             # Check if Whisper is available for fallback
             if not WHISPER_AVAILABLE:

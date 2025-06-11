@@ -53,7 +53,7 @@ http://localhost:5000
 
 4. Alternatively, you can directly run the server script:
 ```bash
-python -m backend.api.server
+python web_server.py
 ```
 
 ### Using the Web Interface
